@@ -1,3 +1,6 @@
+
+local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+
 -- Main initialization function with fixes
 local function initializeHack()
     -- Fix the main errors first
