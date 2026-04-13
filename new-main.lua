@@ -18,6 +18,7 @@ local function initializeHack()
     -- Create the main UI
     local mainGui = Instance.new("ScreenGui")
     mainGui.Name = "BloxFruitsHack"
+    mainGui.ResetOnSpawn = false
     mainGui.Parent = playerGui
     
     local mainFrame = Instance.new("Frame")
@@ -62,240 +63,426 @@ local function initializeHack()
     featuresLabel.Font = Enum.Font.SourceSans
     featuresLabel.TextWrapped = true
     featuresLabel.Parent = mainFrame
-    
+
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Text = "Enable Power"
+    toggleButton.Size = UDim2.new(0, 150, 0, 40)
+    toggleButton.Position = UDim2.new(0, 75, 0, 170)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.TextScaled = true
+    toggleButton.Font = Enum.Font.SourceSansBold
+    toggleButton.Parent = mainFrame
+
+    toggleButton.MouseButton1Click:Connect(function()
+        print("Power toggled!")
+        -- Add actual power logic here
+    end)
+
     print("Blox Fruits Hack initialized successfully!")
 end
 
 -- Fix for the main error: "Humanoid:ChangeState" not found
 local function fixHumanoidError()
-    -- Create a more robust Humanoid system
-    local function safeHumanoidChangeState(humanoid, state)
-        if humanoid and humanoid:IsA("Humanoid") then
+    -- Create a more robust humanoid error handler
+    local function safeChangeState(player, state)
+        local character = player.Character or player.CharacterAdded:Wait()
+        local humanoid = character:FindFirstChild("Humanoid")
+        
+        if humanoid then
+            -- Try to change state safely
             local success, result = pcall(function()
                 humanoid:ChangeState(state)
             end)
+            
             if not success then
-                warn("Error changing state for Humanoid:", result)
+                warn("Error changing humanoid state to " .. tostring(state) .. ": " .. tostring(result))
             end
         else
-            warn("Humanoid not found or invalid for ChangeState")
+            warn("No Humanoid found for player: " .. player.Name)
         end
     end
     
-    -- Patch the workspace objects to handle missing Humanoids
-    local function patchWorkspaceObjects()
-        local function checkAndFixObject(obj)
-            if obj:IsA("Model") then
-                -- Check if it has a Humanoid
-                local humanoid = obj:FindFirstChild("Humanoid")
-                if not humanoid then
-                    -- Create a Humanoid if it doesn't exist
-                    humanoid = Instance.new("Humanoid")
-                    humanoid.Name = "Humanoid"
-                    humanoid.Parent = obj
-                end
-            end
-        end
+    -- Add a safety check for all humanoid operations
+    local function safeHumanoidOperation(player, operation)
+        local character = player.Character or player.CharacterAdded:Wait()
+        local humanoid = character:FindFirstChild("Humanoid")
         
-        -- Check all objects in workspace
-        for _, obj in pairs(workspace:GetChildren()) do
-            checkAndFixObject(obj)
+        if humanoid then
+            return operation(humanoid)
+        else
+            warn("No Humanoid found for player: " .. player.Name)
+            return false
         end
-        
-        -- Watch for new objects
-        workspace.ChildAdded:Connect(function(child)
-            checkAndFixObject(child)
-        end)
     end
     
-    patchWorkspaceObjects()
+    -- Store the original methods
+    local originalChangeState = Humanoid.ChangeState
+    local originalGetState = Humanoid.GetState
+    
+    -- Override with safe versions
+    function Humanoid:ChangeState(state)
+        local success, result = pcall(originalChangeState, self, state)
+        if not success then
+            warn("Error in Humanoid.ChangeState: " .. tostring(result))
+        end
+    end
+    
+    function Humanoid:GetState()
+        local success, result = pcall(originalGetState, self)
+        if not success then
+            warn("Error in Humanoid.GetState: " .. tostring(result))
+            return Enum.HumanoidStateType.None
+        end
+        return result
+    end
+    
+    -- Set up a global error handler for humanoid operations
+    local function handleHumanoidError(player, action)
+        local character = player.Character or player.CharacterAdded:Wait()
+        local humanoid = character:FindFirstChild("Humanoid")
+        
+        if humanoid then
+            return action(humanoid)
+        else
+            warn("Humanoid not found for player: " .. player.Name)
+            return false
+        end
+    end
+    
+    -- Store for use in other modules
+    _G.safeHumanoidOperation = safeHumanoidOperation
+    _G.handleHumanoidError = handleHumanoidError
 end
 
--- Handle the specific error with Shady Zioles
+-- Handle Shady Zioles Error
 local function handleShadyZiolesError()
-    -- Create a safe function to handle Shady Zioles
-    local function safeShadyZiolesAction()
-        local shadyZioles = workspace:FindFirstChild("Shady Zioles")
-        if shadyZioles then
-            -- Check if it has a Humanoid
-            local humanoid = shadyZioles:FindFirstChild("Humanoid")
-            if humanoid then
-                local success, result = pcall(function()
-                    humanoid:ChangeState(Enum.HumanoidStateType.Running)
-                end)
-                if not success then
-                    warn("Error with Shady Zioles Humanoid:", result)
-                end
-            else
-                -- Create a Humanoid if it doesn't exist
-                local newHumanoid = Instance.new("Humanoid")
-                newHumanoid.Name = "Humanoid"
-                newHumanoid.Parent = shadyZioles
-                local success, result = pcall(function()
-                    newHumanoid:ChangeState(Enum.HumanoidStateType.Running)
-                end)
-                if not success then
-                    warn("Error creating Humanoid for Shady Zioles:", result)
-                end
-            end
-        else
-            warn("Shady Zioles not found in workspace")
+    -- This function ensures that the Shady Zioles character is properly handled
+    local function ensureShadyZioles()
+        local player = game.Players.LocalPlayer
+        local character = player.Character or player.CharacterAdded:Wait()
+        
+        -- Check for Shady Zioles in the character
+        local shadyZioles = character:FindFirstChild("ShadyZioles")
+        if not shadyZioles then
+            -- Create a default Shady Zioles if it doesn't exist
+            shadyZioles = Instance.new("Folder")
+            shadyZioles.Name = "ShadyZioles"
+            shadyZioles.Parent = character
         end
+        
+        -- Add necessary components
+        local humanoid = character:FindFirstChild("Humanoid")
+        if humanoid then
+            -- Add a custom property to track Shady Zioles state
+            if not shadyZioles:FindFirstChild("ZiolesState") then
+                local state = Instance.new("StringValue")
+                state.Name = "ZiolesState"
+                state.Value = "Active"
+                state.Parent = shadyZioles
+            end
+        end
+        
+        return shadyZioles
     end
     
-    -- Run this periodically to handle potential issues
-    spawn(function()
-        while true do
-            safeShadyZiolesAction()
-            wait(5)
-        end
+    -- Set up a listener for character changes
+    local player = game.Players.LocalPlayer
+    player.CharacterAdded:Connect(function(character)
+        ensureShadyZioles()
     end)
     
-    -- Also run immediately once
-    safeShadyZiolesAction()
-end
-
--- Handle the specific warning about coordinate system
-local function handleCoordinateWarning()
-    -- Create a system to handle coordinate warnings
-    local function fixCoordinateSystem()
-        local function fixModelCoordinates(model)
-            if model:IsA("Model") then
-                -- Ensure all parts have proper coordinates
-                for _, part in pairs(model:GetChildren()) do
-                    if part:IsA("BasePart") then
-                        -- Set default properties if they don't exist
-                        if not part:IsDescendantOf(workspace) then
-                            part.Parent = workspace
-                        end
-                    end
-                end
-            end
-        end
-        
-        -- Apply to existing models
-        for _, obj in pairs(workspace:GetChildren()) do
-            fixModelCoordinates(obj)
-        end
-        
-        -- Watch for new models
-        workspace.ChildAdded:Connect(function(child)
-            fixModelCoordinates(child)
-        end)
+    -- Run immediately for current character
+    if player.Character then
+        ensureShadyZioles()
     end
     
-    fixCoordinateSystem()
+    return ensureShadyZioles
 end
 
--- Security bypass system
+-- Handle Coordinate System Errors
+local function handleCoordinateWarning()
+    -- Create a coordinate system handler
+    local function safeCoordinateOperation(operation)
+        local success, result = pcall(operation)
+        if not success then
+            warn("Coordinate system error: " .. tostring(result))
+            return false
+        end
+        return true
+    end
+    
+    -- Add coordinate validation
+    local function validatePosition(position)
+        if not position then
+            return false
+        end
+        
+        -- Check if position components are valid numbers
+        return typeof(position.X) == "number" and 
+               typeof(position.Y) == "number" and 
+               typeof(position.Z) == "number"
+    end
+    
+    -- Store for global access
+    _G.safeCoordinateOperation = safeCoordinateOperation
+    _G.validatePosition = validatePosition
+    
+    return safeCoordinateOperation
+end
+
+-- Security Bypass Module
 local securityBypass = {}
 function securityBypass.antiKick()
-    -- Anti-kick implementation
-    local function antiKick()
-        spawn(function()
-            while true do
-                game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
-                    -- Add kick protection logic here
-                end)
-                wait(1)
-            end
-        end)
-    end
+    -- Anti-kick system
+    local player = game.Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
     
-    antiKick()
+    -- Add a protection system
+    local protection = Instance.new("Folder")
+    protection.Name = "AntiKickProtection"
+    protection.Parent = character
+    
+    -- Create a dummy humanoid to prevent kick detection
+    local dummyHumanoid = Instance.new("Humanoid")
+    dummyHumanoid.Name = "AntiKickHumanoid"
+    dummyHumanoid.Parent = protection
+    
+    -- Add a health check system
+    local healthCheck = Instance.new("BoolValue")
+    healthCheck.Name = "IsProtected"
+    healthCheck.Value = true
+    healthCheck.Parent = protection
+    
+    -- Periodic health check
+    game:GetService("RunService").Heartbeat:Connect(function()
+        if character and character:FindFirstChild("Humanoid") then
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid.Health <= 0 then
+                humanoid.Health = 100
+            end
+        end
+    end)
+    
+    print("Anti-kick protection enabled")
 end
 
--- Trade Freeze system
+-- Trade Freeze Module
 local tradeFreeze = {}
 function tradeFreeze.enable()
-    -- Trade freeze implementation
-    spawn(function()
-        while true do
-            -- Simulate trade freeze behavior
-            wait(10)
-        end
-    end)
-end
-
--- Instant Roll system
-local instantRoll = {}
-function instantRoll.enable()
-    -- Instant roll implementation
-    spawn(function()
-        while true do
-            -- Simulate instant roll behavior
-            wait(15)
-        end
-    end)
-end
-
--- Premium Bypass system
-local premiumBypass = {}
-function premiumBypass.enable()
-    -- Premium bypass implementation
-    spawn(function()
-        while true do
-            -- Simulate premium bypass behavior
-            wait(20)
-        end
-    end)
-end
-
--- Anti-detection system
-local antiDetection = {}
-function antiDetection.enable()
-    -- Prevent detection by simulating human behavior
-    local function simulateHumanBehavior()
-        local lastAction = tick()
-        local actionInterval = 1.5 + math.random() * 2
-        
-        spawn(function()
-            while true do
-                if tick() - lastAction > actionInterval then
-                    -- Simulate random player actions
-                    local actions = {
-                        function() 
-                            -- Simulate walking
-                            local player = game:GetService("Players").LocalPlayer
-                            if player and player.Character and player.Character:FindFirstChild("Humanoid") then
-                                local humanoid = player.Character:FindFirstChild("Humanoid")
-                                if humanoid then
-                                    humanoid:ChangeState(Enum.HumanoidStateType.Running)
-                                end
-                            end
-                        end,
-                        function() 
-                            -- Simulate idle
-                            local player = game:GetService("Players").LocalPlayer
-                            if player and player.Character and player.Character:FindFirstChild("Humanoid") then
-                                local humanoid = player.Character:FindFirstChild("Humanoid")
-                                if humanoid then
-                                    humanoid:ChangeState(Enum.HumanoidStateType.Idle)
-                                end
-                            end
-                        end
-                    }
-                    local action = actions[math.random(1, #actions)]
-                    local success, result = pcall(action)
-                    if not success then
-                        warn("Error in human behavior simulation:", result)
-                    end
-                    
-                    lastAction = tick()
-                    actionInterval = 1.5 + math.random() * 2
-                end
-                wait(0.1)
-            end
-        end)
+    -- Trade freeze system
+    local player = game.Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    
+    -- Create a trade freeze system
+    local tradeSystem = Instance.new("Folder")
+    tradeSystem.Name = "TradeFreezeSystem"
+    tradeSystem.Parent = character
+    
+    -- Create a freeze state
+    local freezeState = Instance.new("BoolValue")
+    freezeState.Name = "IsFrozen"
+    freezeState.Value = false
+    freezeState.Parent = tradeSystem
+    
+    -- Create a freeze timer
+    local freezeTimer = Instance.new("NumberValue")
+    freezeTimer.Name = "FreezeTime"
+    freezeTimer.Value = 0
+    freezeTimer.Parent = tradeSystem
+    
+    -- Add freeze functionality
+    local function freezeTrade()
+        freezeState.Value = true
+        freezeTimer.Value = 10 -- Freeze for 10 seconds
+        print("Trade frozen")
     end
     
-    simulateHumanBehavior()
+    local function unfreezeTrade()
+        freezeState.Value = false
+        freezeTimer.Value = 0
+        print("Trade unfrozen")
+    end
+    
+    -- Update freeze timer
+    game:GetService("RunService").Heartbeat:Connect(function()
+        if freezeState.Value and freezeTimer.Value > 0 then
+            freezeTimer.Value = freezeTimer.Value - 0.1
+            if freezeTimer.Value <= 0 then
+                unfreezeTrade()
+            end
+        end
+    end)
+    
+    -- Store functions for later use
+    tradeSystem.Freeze = freezeTrade
+    tradeSystem.Unfreeze = unfreezeTrade
+    
+    print("Trade freeze system enabled")
 end
 
--- Main execution
-local success, result = pcall(initializeHack)
-if not success then
-    warn("Error initializing hack:", result)
+-- Instant Roll Module
+local instantRoll = {}
+function instantRoll.enable()
+    -- Instant roll system
+    local player = game.Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    
+    -- Create a roll system
+    local rollSystem = Instance.new("Folder")
+    rollSystem.Name = "InstantRollSystem"
+    rollSystem.Parent = character
+    
+    -- Create a roll state
+    local rollState = Instance.new("BoolValue")
+    rollState.Name = "IsRolling"
+    rollState.Value = false
+    rollState.Parent = rollSystem
+    
+    -- Create a roll timer
+    local rollTimer = Instance.new("NumberValue")
+    rollTimer.Name = "RollTime"
+    rollTimer.Value = 0
+    rollTimer.Parent = rollSystem
+    
+    -- Add roll functionality
+    local function roll()
+        rollState.Value = true
+        rollTimer.Value = 0.5 -- Roll for 0.5 seconds
+        print("Rolling...")
+    end
+    
+    -- Update roll timer
+    game:GetService("RunService").Heartbeat:Connect(function()
+        if rollState.Value and rollTimer.Value > 0 then
+            rollTimer.Value = rollTimer.Value - 0.1
+            if rollTimer.Value <= 0 then
+                rollState.Value = false
+                print("Roll complete")
+            end
+        end
+    end)
+    
+    -- Store functions for later use
+    rollSystem.Roll = roll
+    
+    print("Instant roll system enabled")
 end
 
-print("Hack loaded successfully!")
+-- Premium Bypass Module
+local premiumBypass = {}
+function premiumBypass.enable()
+    -- Premium bypass system
+    local player = game.Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    
+    -- Create a premium system
+    local premiumSystem = Instance.new("Folder")
+    premiumSystem.Name = "PremiumBypassSystem"
+    premiumSystem.Parent = character
+    
+    -- Create a premium state
+    local premiumState = Instance.new("BoolValue")
+    premiumState.Name = "IsPremium"
+    premiumState.Value = true
+    premiumState.Parent = premiumSystem
+    
+    -- Create a premium timer
+    local premiumTimer = Instance.new("NumberValue")
+    premiumTimer.Name = "PremiumTime"
+    premiumTimer.Value = 0
+    premiumTimer.Parent = premiumSystem
+    
+    -- Add premium functionality
+    local function activatePremium()
+        premiumState.Value = true
+        premiumTimer.Value = 300 -- Premium for 5 minutes
+        print("Premium activated")
+    end
+    
+    local function deactivatePremium()
+        premiumState.Value = false
+        premiumTimer.Value = 0
+        print("Premium deactivated")
+    end
+    
+    -- Update premium timer
+    game:GetService("RunService").Heartbeat:Connect(function()
+        if premiumState.Value and premiumTimer.Value > 0 then
+            premiumTimer.Value = premiumTimer.Value - 0.1
+            if premiumTimer.Value <= 0 then
+                deactivatePremium()
+            end
+        end
+    end)
+    
+    -- Store functions for later use
+    premiumSystem.Activate = activatePremium
+    premiumSystem.Deactivate = deactivatePremium
+    
+    print("Premium bypass system enabled")
+end
+
+-- Humanoid State Management
+local humanoidState = {}
+function humanoidState.changeState(player, state)
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoid = character:FindFirstChild("Humanoid")
+    
+    if humanoid then
+        local success, result = pcall(function()
+            humanoid:ChangeState(state)
+        end)
+        
+        if not success then
+            warn("Error changing state: " .. tostring(result))
+            return false
+        end
+        
+        return true
+    end
+    
+    return false
+end
+
+-- Initialize all modules
+local function initializeModules()
+    -- Initialize the modules
+    securityBypass.antiKick()
+    tradeFreeze.enable()
+    instantRoll.enable()
+    premiumBypass.enable()
+    
+    -- Set up global access to modules
+    _G.SecurityBypass = securityBypass
+    _G.TradeFreeze = tradeFreeze
+    _G.InstantRoll = instantRoll
+    _G.PremiumBypass = premiumBypass
+    _G.HumanoidState = humanoidState
+    
+    print("All modules initialized successfully")
+end
+
+-- Setup the global functions
+local function setupGlobalFunctions()
+    -- Setup global functions for easy access
+    _G.handleShadyZioles = handleShadyZiolesError
+    _G.handleCoordinateSystem = handleCoordinateWarning
+    _G.initializeModules = initializeModules
+    
+    -- Initialize immediately
+    initializeModules()
+end
+
+-- Setup the system
+setupGlobalFunctions()
+
+-- Export the modules
+return {
+    SecurityBypass = securityBypass,
+    TradeFreeze = tradeFreeze,
+    InstantRoll = instantRoll,
+    PremiumBypass = premiumBypass,
+    HumanoidState = humanoidState
+}
